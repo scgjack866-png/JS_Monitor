@@ -1,0 +1,26 @@
+//package main
+//
+//import (
+//	"OperationAndMonitoring/utils/net"
+//	"strings"
+//)
+//
+//func checkIp(ip string) {
+//
+//}
+//
+//func startSocks() {
+//
+//}
+//
+//func checkSocks() {
+//
+//}
+//
+//func main() {
+//	var ceshi []string = []string{"154.39.92.39:2843:lbjsq998pw:aes-256-gcm:myss:0573268b31a741d56f50c377a532fd0f::1"}
+//	for _, s := range ceshi {
+//		strMap := strings.Split(s, ":")
+//		net.CheckIPTCPAndUDP(strMap[0], strMap[1], strMap[2], strMap[3], "1080", strMap[6], strMap[5])
+//	}
+//}
