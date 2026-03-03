@@ -68,17 +68,15 @@ func Create(c *gin.Context) {
 	var hostForm form.HostForm
 	var host entity.Host
 	var group entity.Group
-	err := c.BindJSON(&hostForm)
-	if err != nil {
+	if err := c.BindJSON(&hostForm); err != nil {
 		fmt.Println(err)
 		c.JSON(200, utils.FailedRespon("获取json数据失败！"))
 		return
 	}
 
 	notFound, _ := utils.First(&entity.Host{MachineCode: hostForm.MachineCode}, &host)
-	Id := host.ID
-	err = copier.CopyByTag(&host, &hostForm, "mson")
-	if err != nil {
+	hostID := host.ID
+	if err := copier.CopyByTag(&host, &hostForm, "mson"); err != nil {
 		c.JSON(200, utils.FailedRespon("复制结构体失败！"))
 		return
 	}
@@ -86,20 +84,21 @@ func Create(c *gin.Context) {
 	delayTime, _ := time.ParseInLocation("2006-01-02 15:04:05", hostForm.DelayTime, time.Local)
 
 	host.UpdateTime = time.Now()
-	_, err2 := utils.First(&entity.Group{ID: hostForm.GroupID}, &group)
-	if err2 != nil {
+	if _, err := utils.First(&entity.Group{ID: hostForm.GroupID}, &group); err != nil {
 		return
 	}
 	var body string
 	var ok bool
 	var errs []error
+	dashboardUID := "null"
 
 	if lo.IsNil(host.Status) || lo.IsEmpty(*host.Status) {
-		body, ok, errs = dashboards.CreateDashboards("null", hostForm.IpAddr, hostForm.Name, group.FolderID, hostForm.NetworkName)
+		body, ok, errs = dashboards.CreateDashboards(dashboardUID, hostForm.IpAddr, hostForm.Name, group.FolderID, hostForm.NetworkName)
 		var status = 1
 		host.Status = &status
 	} else {
-		body, ok, errs = dashboards.CreateDashboards("\""+host.UID+"\"", hostForm.IpAddr, hostForm.Name, group.FolderID, hostForm.NetworkName)
+		dashboardUID = "\"" + host.UID + "\""
+		body, ok, errs = dashboards.CreateDashboards(dashboardUID, hostForm.IpAddr, hostForm.Name, group.FolderID, hostForm.NetworkName)
 	}
 
 	if !ok || errs != nil {
@@ -129,12 +128,11 @@ func Create(c *gin.Context) {
 	}
 
 	host.UID = strings.Split(strings.Split(body, "uid")[1], "\"")[2]
+	var err error
 	if notFound {
-		fmt.Println(1)
 		err = utils.Create(&host)
 	} else {
-		fmt.Println(2)
-		err = utils.Updates(&entity.Host{ID: Id}, &host)
+		err = utils.Updates(&entity.Host{ID: hostID}, &host)
 	}
 
 	if err != nil {
