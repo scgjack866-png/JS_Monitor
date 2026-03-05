@@ -5,8 +5,11 @@ import (
 	"OperationAndMonitoring/utils"
 	"OperationAndMonitoring/utils/cache"
 	"OperationAndMonitoring/utils/convert"
+	"crypto/subtle"
 	"github.com/gin-gonic/gin"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,10 +22,9 @@ func UserAuthMiddleware(skipper ...SkipperFunc) gin.HandlerFunc {
 		}
 		var uuid string
 		if t := c.GetHeader(common.TOKEN_KEY); t != "" {
-
-			// 用于服务器直接通过api添加服务器，更改服务器
-			// 不用时可以注释
-			if t == "BccNQJzLJIaboc2tvkGlop1z66H3ROnf" {
+			if allowByAPIKey(c, t) {
+				c.Set(common.USER_UUID_Key, "internal-api")
+				c.Set(common.USER_ID_Key, uint64(0))
 				c.Next()
 				return
 			}
@@ -66,4 +68,29 @@ func UserAuthMiddleware(skipper ...SkipperFunc) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// allowByAPIKey 使用环境变量 INTERNAL_API_KEY 控制无登录调用。
+// 请求头支持：
+// 1) Authorization: ApiKey <key>
+// 2) X-API-Key: <key>
+func allowByAPIKey(c *gin.Context, authorizationHeader string) bool {
+	expected := strings.TrimSpace(os.Getenv("INTERNAL_API_KEY"))
+	if expected == "" {
+		return false
+	}
+
+	provided := strings.TrimSpace(c.GetHeader("X-API-Key"))
+	if provided == "" {
+		fields := strings.Fields(strings.TrimSpace(authorizationHeader))
+		if len(fields) == 2 && strings.EqualFold(fields[0], "ApiKey") {
+			provided = fields[1]
+		}
+	}
+
+	if provided == "" {
+		return false
+	}
+
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
 }

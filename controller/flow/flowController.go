@@ -201,6 +201,15 @@ func GetSnapshotUrl(c *gin.Context) {
 }
 
 func FilterUnderOneM(c *gin.Context) {
+	threshold := 102400.0
+	if thresholdStr := c.Query("threshold"); thresholdStr != "" {
+		parsedThreshold, err := strconv.ParseFloat(thresholdStr, 64)
+		if err != nil || parsedThreshold < 0 {
+			c.JSON(200, utils.FailedRespon("threshold 参数错误！"))
+			return
+		}
+		threshold = parsedThreshold
+	}
 
 	var list []vo.FlowVO
 	now := time.Now().UnixNano() / 1e6
@@ -253,7 +262,7 @@ func FilterUnderOneM(c *gin.Context) {
 				} else {
 					flowVO.Out = dsQueryFlowBody.Results.Out.Frames[0].Data.Values[1][0]
 					flowVO.In = dsQueryFlowBody.Results.In.Frames[0].Data.Values[1][0]
-					if flowVO.Out >= 102400 || flowVO.In >= 102400 {
+					if flowVO.Out >= threshold || flowVO.In >= threshold {
 						continue
 					}
 					flowVO.OutUnit = humanize.IBytes(convert.ToUint64(flowVO.Out))
