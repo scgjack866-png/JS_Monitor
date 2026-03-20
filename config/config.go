@@ -55,7 +55,5 @@ func LoadConfig(fpath string) (c *Config, err error) {
 	c.Zap.MaxSize = v.GetInt("zap.maxSize")
 	c.Zap.MaxAge = v.GetInt("zap.maxAge")
 	c.Zap.MaxBackups = v.GetInt("zap.maxBackup")
-	c.Zap.Level = v.GetString("zap.level")
-	c.Zap.Debug = v.GetBool("zap.debug")
 	return
 }
