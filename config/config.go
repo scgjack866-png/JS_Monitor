@@ -51,9 +51,12 @@ func LoadConfig(fpath string) (c *Config, err error) {
 	c.Gorm.MaxOpenConns = v.GetInt("gorm.max_open_conns")
 	c.Gorm.MaxIdleConns = v.GetInt("gorm.max_idle_conns")
 	c.Gorm.TablePrefix = v.GetString("gorm.table_prefix")
+	// zap 日志相关配置：文件滚动、日志级别、debug 开关。
 	c.Zap.FileName = v.GetString("zap.fileName")
 	c.Zap.MaxSize = v.GetInt("zap.maxSize")
 	c.Zap.MaxAge = v.GetInt("zap.maxAge")
 	c.Zap.MaxBackups = v.GetInt("zap.maxBackup")
+	c.Zap.Level = v.GetString("zap.level")
+	c.Zap.Debug = v.GetBool("zap.debug")
 	return
 }

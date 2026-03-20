@@ -38,8 +38,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// 加载日志
-	zap.InitLogger(config)
+	// 日志初始化失败时直接终止启动，避免服务在无日志能力的情况下运行。
+	if err = zap.InitLogger(config); err != nil {
+		panic(err)
+	}
 
 	initialize.InitDB(config)
 	//initialize.InitCsbinEnforcer()
@@ -55,7 +57,12 @@ func main() {
 }
 
 func initWeb(config *config.Config) {
-	gin.SetMode(gin.ReleaseMode) //调试模式
+	// 只要日志或数据库开启 debug，就切换 Gin 到调试模式。
+	if config.Zap.Debug || config.Gorm.Debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	app := gin.New()
 	app.NoRoute(middleware.NoRouteHandler())
 	// 崩溃恢复
