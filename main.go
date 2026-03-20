@@ -39,7 +39,9 @@ func main() {
 		panic(err)
 	}
 	// 加载日志
-	zap.InitLogger(config)
+	if err = zap.InitLogger(config); err != nil {
+		panic(err)
+	}
 
 	initialize.InitDB(config)
 	//initialize.InitCsbinEnforcer()
@@ -55,7 +57,11 @@ func main() {
 }
 
 func initWeb(config *config.Config) {
-	gin.SetMode(gin.ReleaseMode) //调试模式
+	if config.Zap.Debug || config.Gorm.Debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	app := gin.New()
 	app.NoRoute(middleware.NoRouteHandler())
 	// 崩溃恢复
