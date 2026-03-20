@@ -27,25 +27,45 @@ func CreateToken(m map[string]string, keys ...string) string {
 
 // 解析token
 func ParseToken(tokenString string, keys ...string) (map[string]string, bool) {
+	tokenString = extractToken(tokenString)
+	if tokenString == "" {
+		return nil, false
+	}
 
-	tokenString = strings.Fields(tokenString)[1]
 	key := jwtKey
 	if len(keys) > 0 {
 		key = keys[0]
 	}
-	token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(key), nil
 	})
+	if err != nil || token == nil {
+		return nil, false
+	}
+
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		mapData := make(map[string]string)
 		for index, val := range claims {
 			mapData[index] = fmt.Sprintf("%v", val)
 		}
 		return mapData, true
-	} else {
-		return nil, false
 	}
+	return nil, false
+}
+
+func extractToken(tokenString string) string {
+	fields := strings.Fields(strings.TrimSpace(tokenString))
+	if len(fields) == 0 {
+		return ""
+	}
+	if len(fields) == 1 {
+		return fields[0]
+	}
+	if len(fields) == 2 && strings.EqualFold(fields[0], "Bearer") {
+		return fields[1]
+	}
+	return ""
 }
