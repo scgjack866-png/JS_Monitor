@@ -2,6 +2,7 @@ package zap
 
 import (
 	"OperationAndMonitoring/config"
+	"fmt"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"net"
 	"net/http"
@@ -20,28 +21,59 @@ var lg *zap.Logger
 
 // InitLogger 初始化Logger
 func InitLogger(cfg *config.Config) (err error) {
-	writeSyncer := getLogWriter(cfg.Zap.FileName, cfg.Zap.MaxSize, cfg.Zap.MaxBackups, cfg.Zap.MaxAge)
-	encoder := getEncoder()
-	var l = new(zapcore.Level)
-	//err = l.UnmarshalText([]byte(cfg.Level))
-	//if err != nil {
-	//	return
-	//}
-	core := zapcore.NewCore(encoder, writeSyncer, l)
+	atomicLevel, err := newAtomicLevel(cfg.Zap.Level, cfg.Zap.Debug)
+	if err != nil {
+		return err
+	}
 
-	lg = zap.New(core, zap.AddCaller())
-	zap.ReplaceGlobals(lg) // 替换zap包中全局的logger实例，后续在其他包中只需使用zap.L()调用即可
-	return
+	writeSyncers := []zapcore.WriteSyncer{getLogWriter(cfg.Zap.FileName, cfg.Zap.MaxSize, cfg.Zap.MaxBackups, cfg.Zap.MaxAge)}
+	if cfg.Zap.Debug {
+		writeSyncers = append(writeSyncers, zapcore.AddSync(os.Stdout))
+	}
+
+	core := zapcore.NewCore(
+		getEncoder(),
+		zapcore.NewMultiWriteSyncer(writeSyncers...),
+		atomicLevel,
+	)
+
+	options := []zap.Option{zap.AddCaller()}
+	if cfg.Zap.Debug {
+		options = append(options, zap.AddStacktrace(zapcore.ErrorLevel))
+	}
+
+	lg = zap.New(core, options...)
+	zap.ReplaceGlobals(lg)
+	return nil
+}
+
+func newAtomicLevel(level string, debugMode bool) (zap.AtomicLevel, error) {
+	if debugMode && strings.TrimSpace(level) == "" {
+		return zap.NewAtomicLevelAt(zap.DebugLevel), nil
+	}
+	if strings.TrimSpace(level) == "" {
+		return zap.NewAtomicLevelAt(zap.InfoLevel), nil
+	}
+
+	var zapLevel zapcore.Level
+	if err := zapLevel.UnmarshalText([]byte(level)); err != nil {
+		return zap.AtomicLevel{}, fmt.Errorf("invalid zap.level %q: %w", level, err)
+	}
+	return zap.NewAtomicLevelAt(zapLevel), nil
 }
 
 func getEncoder() zapcore.Encoder {
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	encoderConfig.TimeKey = "time"
-	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	encoderConfig.EncodeDuration = zapcore.SecondsDurationEncoder
-	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	return zapcore.NewJSONEncoder(encoderConfig)
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:        "time",
+		LevelKey:       "level",
+		MessageKey:     "msg",
+		CallerKey:      "caller",
+		EncodeTime:     zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05"),
+		EncodeLevel:    zapcore.CapitalLevelEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
+	}
+	return zapcore.NewConsoleEncoder(encoderConfig)
 }
 
 func getLogWriter(filename string, maxSize, maxBackup, maxAge int) zapcore.WriteSyncer {
@@ -63,20 +95,29 @@ func GinLogger() gin.HandlerFunc {
 		c.Next()
 
 		cost := time.Since(start)
-
-		if c.Writer.Status() != 204 {
-			lg.Info(path,
-				zap.Int("status", c.Writer.Status()),
-				zap.String("method", c.Request.Method),
-				zap.String("path", path),
-				zap.String("query", query),
-				zap.String("ip", c.ClientIP()),
-				zap.String("user-agent", c.Request.UserAgent()),
-				zap.String("errors", c.Errors.ByType(gin.ErrorTypePrivate).String()),
-				zap.Duration("cost", cost),
-			)
+		message := c.Request.Method + " " + path
+		fields := []zap.Field{
+			zap.Int("status", c.Writer.Status()),
+			zap.String("cost", cost.String()),
+			zap.String("ip", c.ClientIP()),
+		}
+		if query != "" {
+			fields = append(fields, zap.String("query", query))
+		}
+		if privateErr := c.Errors.ByType(gin.ErrorTypePrivate).String(); privateErr != "" {
+			fields = append(fields, zap.String("error", privateErr))
 		}
 
+		switch {
+		case c.Writer.Status() >= http.StatusInternalServerError:
+			lg.Error(message, fields...)
+		case c.Writer.Status() >= http.StatusBadRequest:
+			lg.Warn(message, fields...)
+		case c.Writer.Status() != http.StatusNoContent:
+			lg.Info(message, fields...)
+		default:
+			lg.Debug(message, fields...)
+		}
 	}
 }
 
@@ -85,8 +126,6 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				// Check for a broken connection, as it is not really a
-				// condition that warrants a panic stack trace.
 				var brokenPipe bool
 				if ne, ok := err.(*net.OpError); ok {
 					if se, ok := ne.Err.(*os.SyscallError); ok {
@@ -102,8 +141,7 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 						zap.Any("error", err),
 						zap.String("request", string(httpRequest)),
 					)
-					// If the connection is dead, we can't write a status to it.
-					c.Error(err.(error)) // nolint: errcheck
+					c.Error(err.(error))
 					c.Abort()
 					return
 				}
