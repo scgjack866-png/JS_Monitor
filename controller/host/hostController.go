@@ -45,6 +45,22 @@ func Page(c *gin.Context) {
 		}
 		// 解决时间没法复制
 		hostVO.CreateTime = host.CreateTime.Format("2006-01-02")
+		allIps := strings.Split(host.AllIp, ",")
+		validIps := make([]string, 0, len(allIps))
+		for _, ip := range allIps {
+			if ip != "" {
+				validIps = append(validIps, ip)
+			}
+		}
+		if len(validIps) == 0 {
+			validIps = append(validIps, host.IpAddr)
+		}
+		for _, ip := range validIps {
+			if ip != "" && ip != host.IpAddr {
+				hostVO.OtherIp = append(hostVO.OtherIp, ip)
+			}
+		}
+		hostVO.IpNum = len(validIps)
 
 		// 用户组为空则不返回分组名
 		if lo.IsNotEmpty(host.GroupID) {
