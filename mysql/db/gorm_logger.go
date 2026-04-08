@@ -12,18 +12,22 @@ import (
 
 type GormLogger struct {
 	logLevel logger.LogLevel
+	enabled  bool
 }
 
-func NewGormLogger(level logger.LogLevel) logger.Interface {
-	return &GormLogger{logLevel: level}
+func NewGormLogger(level logger.LogLevel, enabled bool) logger.Interface {
+	return &GormLogger{logLevel: level, enabled: enabled}
 }
 
 func (l *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
-	return &GormLogger{logLevel: level}
+	return &GormLogger{logLevel: level, enabled: l.enabled}
 }
 
 func (l *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
 	if l.logLevel < logger.Info {
+		return
+	}
+	if !l.enabled {
 		return
 	}
 	log.Printf(msg, data...)
@@ -33,6 +37,9 @@ func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) 
 	if l.logLevel < logger.Warn {
 		return
 	}
+	if !l.enabled {
+		return
+	}
 	log.Printf(msg, data...)
 }
 
@@ -40,10 +47,16 @@ func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{})
 	if l.logLevel < logger.Error {
 		return
 	}
+	if !l.enabled {
+		return
+	}
 	log.Printf(msg, data...)
 }
 
 func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
+	if !l.enabled {
+		return
+	}
 	if l.logLevel == logger.Silent {
 		return
 	}
