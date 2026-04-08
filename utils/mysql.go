@@ -3,6 +3,7 @@ package utils
 import (
 	"OperationAndMonitoring/mysql"
 	"OperationAndMonitoring/mysql/db"
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,28 +15,28 @@ import (
 
 // Create
 func Create(value interface{}) error {
-	err := db.DB.Create(value).Error
+	err := withCallerDB(db.DB, 3).Create(value).Error
 	logDBError("Create", err)
 	return err
 }
 
 // Save
 func Save(value interface{}) error {
-	err := db.DB.Save(value).Error
+	err := withCallerDB(db.DB, 3).Save(value).Error
 	logDBError("Save", err)
 	return err
 }
 
 // Updates
 func Updates(where interface{}, value interface{}) error {
-	err := db.DB.Model(where).Updates(value).Error
+	err := withCallerDB(db.DB, 3).Model(where).Updates(value).Error
 	logDBError("Updates", err)
 	return err
 }
 
 // Delete
 func DeleteByModel(model interface{}) (count int64, err error) {
-	tx := db.DB.Delete(model)
+	tx := withCallerDB(db.DB, 3).Delete(model)
 	err = tx.Error
 	if err != nil {
 		logDBError("DeleteByModel", err)
@@ -47,7 +48,7 @@ func DeleteByModel(model interface{}) (count int64, err error) {
 
 // Delete
 func DeleteByWhere(model, where interface{}) (count int64, err error) {
-	tx := db.DB.Where(where).Delete(model)
+	tx := withCallerDB(db.DB, 3).Where(where).Delete(model)
 	err = tx.Error
 	if err != nil {
 		logDBError("DeleteByWhere", err)
@@ -59,7 +60,7 @@ func DeleteByWhere(model, where interface{}) (count int64, err error) {
 
 // Delete
 func DeleteByID(model interface{}, id uint64) (count int64, err error) {
-	tx := db.DB.Where("id=?", id).Delete(model)
+	tx := withCallerDB(db.DB, 3).Where("id=?", id).Delete(model)
 	err = tx.Error
 	if err != nil {
 		logDBError("DeleteByID", err)
@@ -71,7 +72,7 @@ func DeleteByID(model interface{}, id uint64) (count int64, err error) {
 
 // Delete
 func DeleteByIDS(model interface{}, ids []uint64) (count int64, err error) {
-	tx := db.DB.Where("id in (?)", ids).Delete(model)
+	tx := withCallerDB(db.DB, 3).Where("id in (?)", ids).Delete(model)
 	err = tx.Error
 	if err != nil {
 		logDBError("DeleteByIDS", err)
@@ -83,7 +84,7 @@ func DeleteByIDS(model interface{}, ids []uint64) (count int64, err error) {
 
 // First
 func FirstByID(out interface{}, id int) (notFound bool, err error) {
-	err = db.DB.First(out, id).Error
+	err = withCallerDB(db.DB, 3).First(out, id).Error
 	notFound = isRecordNotFound(err)
 	logDBError("FirstByID", err)
 	return
@@ -91,7 +92,7 @@ func FirstByID(out interface{}, id int) (notFound bool, err error) {
 
 // First
 func First(where interface{}, out interface{}) (notFound bool, err error) {
-	err = db.DB.Where(where).First(out).Error
+	err = withCallerDB(db.DB, 3).Where(where).First(out).Error
 	notFound = isRecordNotFound(err)
 	logDBError("First", err)
 	return
@@ -99,7 +100,7 @@ func First(where interface{}, out interface{}) (notFound bool, err error) {
 
 // Find
 func Find(where interface{}, out interface{}, whereOrder ...mysql.PageWhereOrder) error {
-	tx := applyPageWhereOrder(db.DB.Where(where), whereOrder...)
+	tx := applyPageWhereOrder(withCallerDB(db.DB, 3).Where(where), whereOrder...)
 	err := tx.Find(out).Error
 	logDBError("Find", err)
 	return err
@@ -107,7 +108,7 @@ func Find(where interface{}, out interface{}, whereOrder ...mysql.PageWhereOrder
 
 // Scan
 func Scan(model, where interface{}, out interface{}) (notFound bool, err error) {
-	err = db.DB.Model(model).Where(where).Scan(out).Error
+	err = withCallerDB(db.DB, 3).Model(model).Where(where).Scan(out).Error
 	notFound = isRecordNotFound(err)
 	logDBError("Scan", err)
 	return
@@ -115,7 +116,7 @@ func Scan(model, where interface{}, out interface{}) (notFound bool, err error) 
 
 // ScanList
 func ScanList(model, where interface{}, out interface{}, orders ...string) error {
-	tx := db.DB.Model(model).Where(where)
+	tx := withCallerDB(db.DB, 3).Model(model).Where(where)
 	if len(orders) > 0 {
 		for _, order := range orders {
 			tx = tx.Order(order)
@@ -128,7 +129,7 @@ func ScanList(model, where interface{}, out interface{}, orders ...string) error
 
 // GetPage
 func GetPage(model, where interface{}, out interface{}, pageIndex, pageSize int, totalCount *int64, whereOrder ...mysql.PageWhereOrder) error {
-	tx := applyPageWhereOrder(db.DB.Model(model).Where(where), whereOrder...)
+	tx := applyPageWhereOrder(withCallerDB(db.DB, 3).Model(model).Where(where), whereOrder...)
 	err := tx.Count(totalCount).Error
 	if err != nil {
 		logDBError("GetPage.Count", err)
@@ -144,14 +145,14 @@ func GetPage(model, where interface{}, out interface{}, pageIndex, pageSize int,
 
 // PluckList
 func PluckList(model, where interface{}, out interface{}, fieldName string) error {
-	err := db.DB.Model(model).Where(where).Pluck(fieldName, out).Error
+	err := withCallerDB(db.DB, 3).Model(model).Where(where).Pluck(fieldName, out).Error
 	logDBError("PluckList", err)
 	return err
 }
 
 // PluckList
 func Test(model, out interface{}, preload, association string) error {
-	err := db.DB.Model(model).Association(association).Find(out)
+	err := withCallerDB(db.DB, 3).Model(model).Association(association).Find(out)
 	logDBError("Test", err)
 	return err
 }
@@ -185,6 +186,13 @@ func logDBError(op string, err error) {
 		zap.String("caller", caller),
 		zap.Error(err),
 	)
+}
+
+func withCallerDB(tx *gorm.DB, skip int) *gorm.DB {
+	ctx := context.Background()
+	callerInfo := caller(skip)
+	ctx = db.WithCaller(ctx, callerInfo)
+	return tx.WithContext(ctx)
 }
 
 func caller(skip int) string {

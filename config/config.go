@@ -19,6 +19,7 @@ func LoadConfig(fpath string) (c *Config, err error) {
 	v := viper.New()
 	v.SetConfigFile(fpath)
 	v.SetConfigType("yaml")
+	v.SetDefault("gorm.enable_sql_log", true)
 
 	if err1 := v.ReadInConfig(); err1 != nil {
 		err = err1
@@ -46,6 +47,7 @@ func LoadConfig(fpath string) (c *Config, err error) {
 	c.MySQL.Parameters = v.GetString("mysql.parameters")
 	c.Sqlite3.Path = v.GetString("sqlite3.path")
 	c.Gorm.Debug = v.GetBool("gorm.debug")
+	c.Gorm.EnableSQLLog = v.GetBool("gorm.enable_sql_log")
 	c.Gorm.DBType = v.GetString("gorm.db_type")
 	c.Gorm.MaxLifetime = v.GetInt("gorm.max_lifetime")
 	c.Gorm.MaxOpenConns = v.GetInt("gorm.max_open_conns")

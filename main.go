@@ -8,6 +8,7 @@ import (
 	"OperationAndMonitoring/routers"
 	"OperationAndMonitoring/setting"
 	"OperationAndMonitoring/utils/convert"
+	"flag"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	log "go.uber.org/zap"
@@ -30,11 +31,11 @@ var (
 )
 
 func main() {
-
-	configPath := "./config/config.yaml"
+	configPath := flag.String("config", "./config/config.yaml", "配置文件路径")
+	flag.Parse()
 
 	// 加载配置
-	config, err := config.LoadConfig(configPath)
+	config, err := config.LoadConfig(*configPath)
 	if err != nil {
 		panic(err)
 	}
