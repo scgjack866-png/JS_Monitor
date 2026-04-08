@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -30,7 +29,7 @@ func (l *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) 
 	if !l.enabled {
 		return
 	}
-	log.Printf(msg, data...)
+	fmt.Printf(msg+"\n", data...)
 }
 
 func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
@@ -40,7 +39,7 @@ func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) 
 	if !l.enabled {
 		return
 	}
-	log.Printf(msg, data...)
+	fmt.Printf(msg+"\n", data...)
 }
 
 func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
@@ -50,7 +49,7 @@ func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{})
 	if !l.enabled {
 		return
 	}
-	log.Printf(msg, data...)
+	fmt.Printf(msg+"\n", data...)
 }
 
 func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
@@ -71,8 +70,8 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	if v, ok := CallerFromContext(ctx); ok && v != "" {
 		caller = v
 	}
-
-	log.Printf("\n%s %s\n[%0.3fms] [rows:%d] %s\n",
+	
+	fmt.Printf("\n%s %s\n[%0.3fms] [rows:%d] %s\n",
 		time.Now().Format("2006/01/02 15:04:05"),
 		caller,
 		float64(elapsed.Microseconds())/1000.0,
@@ -80,6 +79,6 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 		sql,
 	)
 	if err != nil && err != os.ErrNotExist {
-		log.Printf("gorm error: %s", fmt.Sprintf("%v", err))
+		fmt.Printf("gorm error: %s\n", fmt.Sprintf("%v", err))
 	}
 }
