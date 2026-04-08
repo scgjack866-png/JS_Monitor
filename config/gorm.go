@@ -3,6 +3,7 @@ package config
 // Gorm gorm配置参数
 type Gorm struct {
 	Debug        bool
+	EnableSQLLog bool
 	DBType       string
 	MaxLifetime  int
 	MaxOpenConns int

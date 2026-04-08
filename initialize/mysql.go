@@ -30,7 +30,7 @@ func InitDB(config *config.Config) {
 	if config.Gorm.Debug || config.Zap.Debug {
 		logLevel = logger.Info
 	}
-	gormConfig.Logger = logger.Default.LogMode(logLevel)
+	gormConfig.Logger = db.NewGormLogger(logLevel, config.Gorm.EnableSQLLog)
 
 	//newlogger := logger.New(NewWriter(log.New(os.Stdout, "\r\n", log.Lmsgprefix)), logger.Config{
 	//	SlowThreshold: 200 * time.Millisecond,
