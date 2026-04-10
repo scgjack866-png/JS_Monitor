@@ -6,4 +6,5 @@ type HostReq struct {
 	GroupID  uint   `json:"groupId" uri:"groupId" form:"groupId"`
 	Status   string `json:"status" uri:"status" form:"status"`
 	Keywords string `json:"keywords" uri:"keywords" form:"keywords"`
+	FlowIn   float64 `json:"flowIn" uri:"flowIn" form:"flowIn"`
 }
