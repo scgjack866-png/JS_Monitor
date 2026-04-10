@@ -11,17 +11,18 @@ import (
 	"OperationAndMonitoring/model/vo"
 	"OperationAndMonitoring/prometheus"
 	"OperationAndMonitoring/utils"
-	convert2 "OperationAndMonitoring/utils/convert"
+	"OperationAndMonitoring/utils/convert"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
-	"github.com/ybzhanghx/copier"
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
+	"github.com/ybzhanghx/copier"
 )
 
 func Page(c *gin.Context) {
@@ -49,6 +50,7 @@ func Page(c *gin.Context) {
 		}
 		// 解决时间没法复制
 		hostVO.CreateTime = host.CreateTime.Format("2006-01-02")
+
 		allIps := strings.Split(host.AllIp, ",")
 		validIps := make([]string, 0, len(allIps))
 		seen := make(map[string]struct{}, len(allIps)+1)
@@ -78,6 +80,8 @@ func Page(c *gin.Context) {
 			utils.First(&entity.Group{ID: host.GroupID}, &group)
 			hostVO.GroupName = group.Name
 		}
+		hostVO.FlowInUnit = humanize.IBytes(convert.ToUint64(hostVO.FlowIn))
+		hostVO.FlowOutUnit = humanize.IBytes(convert.ToUint64(hostVO.FlowOut))
 
 		list = append(list, hostVO)
 	}
@@ -90,18 +94,26 @@ func Page(c *gin.Context) {
 }
 
 func Create(c *gin.Context) {
-	//prometheus.GetActiveAgentHostname()
-
+	//现在有几种情况
+	// 1 机器没变   IP变了
+	// 2 IP没变   机器变了
+	// 3 机器变了  IP也变了   那其实就是新增了
 	var hostForm form.HostForm
 	var host entity.Host
 	var group entity.Group
 	if err := c.BindJSON(&hostForm); err != nil {
-		fmt.Println(err)
 		c.JSON(200, utils.FailedRespon("获取json数据失败！"))
 		return
 	}
 
+	// 判断机器是否变更   1 机器没变   IP变了
 	notFound, _ := utils.First(&entity.Host{MachineCode: hostForm.MachineCode}, &host)
+
+	if notFound {
+		// 判断机器是否变更   2 IP没变   机器变了
+		notFound, _ = utils.First(&entity.Host{IpAddr: hostForm.IpAddr}, &host)
+	}
+
 	hostID := host.ID
 	if err := copier.CopyByTag(&host, &hostForm, "mson"); err != nil {
 		c.JSON(200, utils.FailedRespon("复制结构体失败！"))
@@ -119,6 +131,7 @@ func Create(c *gin.Context) {
 	var errs []error
 	dashboardUID := "null"
 
+	// grafana中生成仪表盘
 	if lo.IsNil(host.Status) || lo.IsEmpty(*host.Status) {
 		body, ok, errs = dashboards.CreateDashboards(dashboardUID, hostForm.IpAddr, hostForm.Name, group.FolderID, hostForm.NetworkName)
 		var status = 1
@@ -132,6 +145,8 @@ func Create(c *gin.Context) {
 		c.JSON(200, utils.FailedRespon("请求Grafana失败！"))
 		return
 	}
+
+	// grafana中生成静默策略
 	if delayTime.After(time.Now()) && (host.DelayTime.After(delayTime) || host.DelayTime.Before(delayTime)) {
 		host.DelayTime = delayTime
 		body1, ok1 := silence.CreateSilences(host.IpAddr, host.DelayTime)
@@ -145,6 +160,7 @@ func Create(c *gin.Context) {
 		host.SilenceUID = &strings.Split(strings.Split(body1, "\"silenceID\"")[1], "\"")[1]
 	}
 
+	// grafana中生成告警策略
 	if !(lo.IsNil(host.IsAlter) || lo.IsEmpty(*host.IsAlter)) {
 
 		ok = alterrules.UpdateAlterRules(host)
@@ -155,8 +171,12 @@ func Create(c *gin.Context) {
 	}
 
 	host.UID = strings.Split(strings.Split(body, "uid")[1], "\"")[2]
+
+	// 判断是否为新增
 	var err error
 	if notFound {
+		// 3 机器变了  IP也变了   那其实就是新增了
+		host.CreateTime = time.Now()
 		err = utils.Create(&host)
 	} else {
 		err = utils.Updates(&entity.Host{ID: hostID}, &host)
@@ -177,8 +197,8 @@ func Delete(c *gin.Context) {
 
 	for _, id := range ids {
 		var host entity.Host
-		idUints = append(idUints, convert2.ToUint64(id))
-		notFound, err := utils.First(&entity.Host{ID: convert2.ToUint64(id)}, &host)
+		idUints = append(idUints, convert.ToUint64(id))
+		notFound, err := utils.First(&entity.Host{ID: convert.ToUint64(id)}, &host)
 
 		if err != nil {
 			c.JSON(200, utils.FailedRespon("查询mysql数据库报错！"))
@@ -217,7 +237,7 @@ func Delete(c *gin.Context) {
 
 func Form(c *gin.Context) {
 	param := c.Param("hostId")
-	hostId, _ := convert2.ToUint64E(param)
+	hostId, _ := convert.ToUint64E(param)
 
 	var host entity.Host
 	var hostForm form.HostForm
@@ -235,7 +255,7 @@ func Form(c *gin.Context) {
 
 func Update(c *gin.Context) {
 	param := c.Param("hostId")
-	hostId, _ := convert2.ToUint64E(param)
+	hostId, _ := convert.ToUint64E(param)
 
 	var hostForm form.HostForm
 	var host entity.Host
@@ -247,8 +267,6 @@ func Update(c *gin.Context) {
 	copier.CopyByTag(&host, &hostForm, "mson")
 
 	delayTime, _ := time.ParseInLocation("2006-01-02 15:04:05", hostForm.DelayTime, time.Local)
-
-	host.UpdateTime = time.Now()
 
 	utils.First(&entity.Group{ID: hostForm.GroupID}, &group)
 	var body string
@@ -296,7 +314,7 @@ func Update(c *gin.Context) {
 
 func Password(c *gin.Context) {
 	param := c.Param("userId")
-	userId, _ := convert2.ToUint64E(param)
+	userId, _ := convert.ToUint64E(param)
 	password, err := utils.EncryptPassword(c.Query("password"))
 	if err != nil {
 		c.JSON(200, utils.FailedRespon("重置密码失败！"))
@@ -310,8 +328,8 @@ func Password(c *gin.Context) {
 
 func Status(c *gin.Context) {
 	param := c.Param("hostId")
-	hostId, _ := convert2.ToUint64E(param)
-	status := convert2.ToInt(c.Query("status"))
+	hostId, _ := convert.ToUint64E(param)
+	status := convert.ToInt(c.Query("status"))
 	var host entity.Host
 	utils.First(&entity.Host{ID: hostId}, &host)
 	var ruleID string
@@ -341,7 +359,7 @@ func Status(c *gin.Context) {
 func Network(c *gin.Context) {
 	param := c.Param("hostId")
 
-	hostId, _ := convert2.ToUint64E(param)
+	hostId, _ := convert.ToUint64E(param)
 	var host entity.Host
 	utils.First(&entity.Host{ID: hostId}, &host)
 	req := prometheus.GetNetworkName(host.IpAddr)
@@ -398,7 +416,7 @@ func UpdateFlow(c *gin.Context) {
 
 		flowOut = dsQueryFlowBody.Results.Out.Frames[0].Data.Values[1][0]
 		flowIn = dsQueryFlowBody.Results.In.Frames[0].Data.Values[1][0]
-		
+
 		if err := utils.Updates(&entity.Host{ID: host.ID}, &entity.Host{
 			FlowIn:  flowIn,
 			FlowOut: flowOut,
