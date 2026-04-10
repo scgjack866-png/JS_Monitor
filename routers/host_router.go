@@ -15,6 +15,7 @@ func HostRouter(r *gin.RouterGroup) {
 		hostRouter.PUT("/:hostId", host.Update)
 		hostRouter.PATCH("/:hostId/password", host.Password)
 		hostRouter.PATCH("/:hostId/status", host.Status)
+		hostRouter.PATCH("/flow", host.UpdateFlow)
 		hostRouter.GET("/:hostId/network", host.Network)
 	}
 }
