@@ -411,7 +411,3 @@ func UpdateFlow(c *gin.Context) {
 
 	c.JSON(200, utils.SuccessRespon("更新全部主机流量成功！"))
 }
-	}
-
-	c.JSON(200, utils.SuccessRespon("更新全部主机流量成功！"))
-}
