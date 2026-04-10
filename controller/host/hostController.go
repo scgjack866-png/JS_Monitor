@@ -3,6 +3,7 @@ package host
 import (
 	"OperationAndMonitoring/grafana/alterrules"
 	"OperationAndMonitoring/grafana/dashboards"
+	"OperationAndMonitoring/grafana/ds"
 	"OperationAndMonitoring/grafana/silence"
 	"OperationAndMonitoring/model/entity"
 	"OperationAndMonitoring/model/form"
@@ -11,12 +12,15 @@ import (
 	"OperationAndMonitoring/prometheus"
 	"OperationAndMonitoring/utils"
 	convert2 "OperationAndMonitoring/utils/convert"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/ybzhanghx/copier"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -351,4 +355,70 @@ func Network(c *gin.Context) {
 		list = append(list, option)
 	}
 	c.JSON(200, utils.SuccessRespon(list))
+}
+
+func UpdateFlow(c *gin.Context) {
+	now := time.Now().UnixNano() / 1e6
+	nowStr := strconv.FormatInt(now, 10)
+
+	var hosts []entity.Host
+	if err := utils.Find(&entity.Host{}, &hosts); err != nil {
+		c.JSON(200, utils.FailedRespon("数据库报错！"))
+		return
+	}
+
+	var safeMap sync.Map
+	for _, host := range hosts {
+		if lo.IsEmpty(host.MachineCode) {
+			continue
+		}
+
+		var flowIn float64
+		var flowOut float64
+
+		if value, ok := safeMap.Load(host.MachineCode); ok {
+			if valueF, ok := value.(vo.FlowVO); ok {
+				flowIn = valueF.In
+				flowOut = valueF.Out
+			} else {
+				c.JSON(200, utils.FailedRespon("断言错误！"))
+				return
+			}
+		} else {
+			body, ok := ds.QueryDsFlow(host, nowStr, nowStr)
+			if !ok {
+				c.JSON(200, utils.FailedRespon("请求Grafana错误！"))
+				return
+			}
+
+			var dsQueryFlowBody vo.DsQueryFlowBody
+			if err := json.Unmarshal([]byte(body), &dsQueryFlowBody); err != nil {
+				c.JSON(200, utils.FailedRespon("解析字符串错误！"))
+				return
+			}
+
+			if len(dsQueryFlowBody.Results.Out.Frames) == 0 ||
+				len(dsQueryFlowBody.Results.In.Frames) == 0 ||
+				len(dsQueryFlowBody.Results.Out.Frames[0].Data.Values) < 2 ||
+				len(dsQueryFlowBody.Results.In.Frames[0].Data.Values) < 2 ||
+				len(dsQueryFlowBody.Results.Out.Frames[0].Data.Values[1]) == 0 ||
+				len(dsQueryFlowBody.Results.In.Frames[0].Data.Values[1]) == 0 {
+				continue
+			}
+
+			flowOut = dsQueryFlowBody.Results.Out.Frames[0].Data.Values[1][0]
+			flowIn = dsQueryFlowBody.Results.In.Frames[0].Data.Values[1][0]
+			safeMap.Store(host.MachineCode, vo.FlowVO{In: flowIn, Out: flowOut})
+		}
+
+		if err := utils.Updates(&entity.Host{ID: host.ID}, &entity.Host{
+			FlowIn:  flowIn,
+			FlowOut: flowOut,
+		}); err != nil {
+			c.JSON(200, utils.FailedRespon("更新流量失败！"))
+			return
+		}
+	}
+
+	c.JSON(200, utils.SuccessRespon("更新全部主机流量成功！"))
 }

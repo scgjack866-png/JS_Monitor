@@ -19,6 +19,8 @@ type Host struct {
 	CpuLimit    *int      `gorm:"Column:cpu_limit;type:tinyint(11);NOT NULL;default:80"`
 	MemLimit    *int      `gorm:"Column:mem_limit;type:tinyint(11);NOT NULL;default:80"`
 	NetworkName string    `gorm:"Column:network_name;type:char(20)"`
+	FlowIn      float64   `gorm:"Column:flow_in;type:double;NOT NULL;default:0"`
+	FlowOut     float64   `gorm:"Column:flow_out;type:double;NOT NULL;default:0"`
 	DelayTime   time.Time `gorm:"Column:delay_time;type:datetime"`
 	Sort        *int      `gorm:"Column:sort;default:1"`
 	MachineCode string    `gorm:"Column:machine_code"`
