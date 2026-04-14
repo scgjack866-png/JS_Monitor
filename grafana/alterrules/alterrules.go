@@ -4,8 +4,10 @@ import (
 	"OperationAndMonitoring/initialize"
 	"OperationAndMonitoring/model/entity"
 	"OperationAndMonitoring/utils/convert"
+	"fmt"
 	"github.com/parnurzeal/gorequest"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -81,13 +83,28 @@ func UpdateIpsecAlterRules(agentHostname, domain, ruleUID string, alterNum int) 
 	return res.StatusCode == 200
 }
 
-func DeleteAlterRules(uid string) bool {
-	res, _, _ := request.Delete(initialize.Grafana.ApiUrl+"/api/v1/provisioning/alert-rules/"+uid).
+func DeleteAlterRules(uid string) (bool, string) {
+	res, body, errs := request.Delete(initialize.Grafana.ApiUrl+"/api/v1/provisioning/alert-rules/"+uid).
 		Set("Authorization", initialize.Grafana.Authorization).
 		Set("Content-Type", "application/json").
 		Set("Accept", "application/json").
 		End()
-	return res.StatusCode == 204
+	if errs != nil && len(errs) > 0 {
+		return false, errs[0].Error()
+	}
+
+	if res.StatusCode == 204 {
+		return true, ""
+	}
+
+	if res.StatusCode == 404 {
+		bodyLower := strings.ToLower(body)
+		if strings.Contains(bodyLower, "not found") || strings.Contains(body, "找不到") {
+			return true, ""
+		}
+	}
+
+	return false, fmt.Sprintf("status=%d body=%s", res.StatusCode, body)
 }
 
 func getJson(IP, name, networkName string, flowLimit, loadLimit, diskLimit, cpuLimit, memLimit *int) string {
