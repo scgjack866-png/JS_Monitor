@@ -35,14 +35,16 @@ func GetHostListInfo(req req.HostReq) (error, []entity.Host, int64) {
 		whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "group_id = ?", Value: arr})
 	}
 
-	if req.FlowIn == -2 {
-		whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in <= 0"})
-	} else if req.FlowIn == 0 {
-		whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in > 0"})
-	} else if req.FlowIn > 0 {
-		var arr []interface{}
-		arr = append(arr, req.FlowIn*1024*1024)
-		whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in > 0 and flow_in < ?", Value: arr})
+	if req.FlowIn != nil {
+		if *req.FlowIn == -2 {
+			whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in <= 0"})
+		} else if *req.FlowIn == 0 {
+			whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in > 0"})
+		} else if *req.FlowIn > 0 {
+			var arr []interface{}
+			arr = append(arr, *req.FlowIn*1024*1024)
+			whereOrder = append(whereOrder, mysql.PageWhereOrder{Where: "flow_in > 0 and flow_in < ?", Value: arr})
+		}
 	}
 
 	err := utils.GetPage(&entity.Host{}, &entity.Host{}, &hosts, req.PageNum, req.PageSize, &total, whereOrder...)
