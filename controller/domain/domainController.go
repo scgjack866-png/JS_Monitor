@@ -125,9 +125,9 @@ func Delete(c *gin.Context) {
 			for _, node := range nodes {
 				var nodeDomain entity.NodeDomain
 				utils.First(&entity.NodeDomain{NodeID: node.ID, DomainID: convert2.ToUint64(id)}, &nodeDomain)
-				flag := alterrules.DeleteAlterRules(nodeDomain.RuleID)
+				flag, errMsg := alterrules.DeleteAlterRules(nodeDomain.RuleID)
 				if !flag {
-					c.JSON(200, utils.FailedRespon("监控删除失败！"))
+					c.JSON(200, utils.FailedRespon("监控删除失败！"+errMsg))
 					return
 				}
 			}
@@ -206,9 +206,9 @@ func Status(c *gin.Context) {
 			var nodeDomain entity.NodeDomain
 
 			utils.First(&entity.NodeDomain{NodeID: node.ID, DomainID: domainId}, &nodeDomain)
-			flag := alterrules.DeleteAlterRules(nodeDomain.RuleID)
+			flag, errMsg := alterrules.DeleteAlterRules(nodeDomain.RuleID)
 			if !flag {
-				c.JSON(200, utils.FailedRespon("监控删除失败！"))
+				c.JSON(200, utils.FailedRespon("监控删除失败！"+errMsg))
 				return
 			}
 			utils.DeleteByWhere(&entity.NodeDomain{}, &entity.NodeDomain{DomainID: domainId, NodeID: node.ID})

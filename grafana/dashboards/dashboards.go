@@ -7,6 +7,7 @@ import (
 	"OperationAndMonitoring/utils"
 	"fmt"
 	"github.com/parnurzeal/gorequest"
+	"strings"
 )
 
 var (
@@ -58,15 +59,31 @@ func CreateIpsecDomainDashboards(uid string) (string, bool) {
 	return body, false
 }
 
-func DeleteDashboards(uid string) bool {
+func DeleteDashboards(uid string) (bool, string) {
 
-	res, _, _ := request.
+	res, body, errs := request.
 		Delete(initialize.Grafana.ApiUrl+"/api/dashboards/uid/"+uid).
 		Set("Authorization", initialize.Grafana.Authorization).
 		Set("Content-Type", "application/json").
 		Set("Accept", "application/json").
 		End()
-	return res.StatusCode == 200
+
+	if errs != nil && len(errs) > 0 {
+		return false, errs[0].Error()
+	}
+
+	if res.StatusCode == 200 {
+		return true, ""
+	}
+
+	if res.StatusCode == 404 {
+		bodyLower := strings.ToLower(body)
+		if strings.Contains(bodyLower, "not found") || strings.Contains(body, "找不到") {
+			return true, ""
+		}
+	}
+
+	return false, fmt.Sprintf("status=%d body=%s", res.StatusCode, body)
 }
 
 func getSendJson(uid string, IP string, tag string, folderUid string, networkName string) interface{} {

@@ -94,9 +94,9 @@ func Delete(c *gin.Context) {
 		}
 
 		if *ipsec.Status != 0 {
-			ok := alterrules.DeleteAlterRules(*ipsec.RuleUID)
+			ok, errMsg := alterrules.DeleteAlterRules(*ipsec.RuleUID)
 			if !ok {
-				c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"))
+				c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"+errMsg))
 				return
 			}
 		}
@@ -175,9 +175,9 @@ func Status(c *gin.Context) {
 	utils.First(&entity.Ipsec{ID: ipsecId}, &ipsec)
 	var ruleID string
 	if lo.IsEmpty(status) {
-		ok := alterrules.DeleteAlterRules(*ipsec.RuleUID)
+		ok, errMsg := alterrules.DeleteAlterRules(*ipsec.RuleUID)
 		if !ok {
-			c.JSON(200, utils.FailedRespon("删除ipsec域名告警策略失败！"))
+			c.JSON(200, utils.FailedRespon("删除ipsec域名告警策略失败！"+errMsg))
 			return
 		}
 		ruleID = ""

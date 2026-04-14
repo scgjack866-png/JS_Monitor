@@ -233,16 +233,16 @@ func Delete(c *gin.Context) {
 		}
 
 		if *host.Status != 0 {
-			ok := dashboards.DeleteDashboards(host.UID)
+			ok, errMsg := dashboards.DeleteDashboards(host.UID)
 			if !ok {
-				c.JSON(200, utils.FailedRespon("删除服务器Grafana发生错误！"))
+				c.JSON(200, utils.FailedRespon("删除服务器Grafana发生错误！"+errMsg))
 				return
 			}
 		}
 		if *host.IsAlter != 0 {
-			ok := alterrules.DeleteAlterRules(*host.RuleUID)
+			ok, errMsg := alterrules.DeleteAlterRules(*host.RuleUID)
 			if !ok {
-				c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"))
+				c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"+errMsg))
 				return
 			}
 		}
@@ -357,9 +357,9 @@ func Status(c *gin.Context) {
 	utils.First(&entity.Host{ID: hostId}, &host)
 	var ruleID string
 	if lo.IsEmpty(status) {
-		ok := alterrules.DeleteAlterRules(*host.RuleUID)
+		ok, errMsg := alterrules.DeleteAlterRules(*host.RuleUID)
 		if !ok {
-			c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"))
+			c.JSON(200, utils.FailedRespon("删除服务器告警策略失败！"+errMsg))
 			return
 		}
 		ruleID = ""
