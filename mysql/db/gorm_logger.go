@@ -70,8 +70,9 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	if v, ok := CallerFromContext(ctx); ok && v != "" {
 		caller = v
 	}
-
-	fmt.Printf("\n%s\n[%0.3fms] [rows:%d] %s\n",
+	
+	fmt.Printf("\n%s %s\n[%0.3fms] [rows:%d] %s\n",
+		time.Now().Format("2006/01/02 15:04:05"),
 		caller,
 		float64(elapsed.Microseconds())/1000.0,
 		rows,
